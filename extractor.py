@@ -30,3 +30,28 @@ def parse_duration(iso: str) -> str:
     if minutes:
         parts.append(f"{minutes} min")
     return " ".join(parts)
+
+
+_RECIPE_FIELDS = {
+    "name", "author", "description", "image",
+    "recipeYield", "prepTime", "cookTime", "totalTime",
+    "recipeIngredient", "recipeInstructions",
+    "recipeCategory", "recipeCuisine", "keywords",
+}
+
+
+def normalize_recipe(raw: dict) -> dict:
+    """Trim to clean Schema.org Recipe shape, resolve nested authors."""
+    out = {k: v for k, v in raw.items() if k in _RECIPE_FIELDS and v not in (None, "", [], {})}
+
+    if "author" in out:
+        author = out["author"]
+        if isinstance(author, list):
+            out["author"] = [
+                a.get("name", str(a)) if isinstance(a, dict) else a
+                for a in author
+            ]
+        elif isinstance(author, dict):
+            out["author"] = author.get("name", "")
+
+    return out
