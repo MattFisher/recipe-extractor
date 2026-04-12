@@ -55,3 +55,52 @@ def normalize_recipe(raw: dict) -> dict:
             out["author"] = author.get("name", "")
 
     return out
+
+
+def recipe_to_markdown(recipe: dict) -> str:
+    """Render a normalised recipe dict to Markdown."""
+    lines = [f"# {recipe.get('name', 'Recipe')}", ""]
+
+    # Meta line
+    meta = []
+    author = recipe.get("author")
+    if author:
+        if isinstance(author, list):
+            meta.append("By " + ", ".join(author))
+        else:
+            meta.append(f"By {author}")
+    if recipe.get("recipeYield"):
+        meta.append(f"Yield: {recipe['recipeYield']}")
+    for key, label in [("prepTime", "Prep"), ("cookTime", "Cook"), ("totalTime", "Total")]:
+        if recipe.get(key):
+            meta.append(f"{label}: {parse_duration(recipe[key])}")
+    if meta:
+        lines.append(" · ".join(meta))
+        lines.append("")
+
+    # Ingredients
+    if recipe.get("recipeIngredient"):
+        lines += ["## Ingredients", ""]
+        for ing in recipe["recipeIngredient"]:
+            lines.append(f"- {ing}")
+        lines.append("")
+
+    # Instructions
+    instructions = recipe.get("recipeInstructions", [])
+    if instructions:
+        lines += ["## Instructions", ""]
+        first = instructions[0] if instructions else {}
+        if isinstance(first, dict) and first.get("@type") == "HowToSection":
+            for section in instructions:
+                lines += [f"### {section.get('name', 'Section')}", ""]
+                for i, step in enumerate(section.get("itemListElement", []), 1):
+                    text = step.get("text", "") if isinstance(step, dict) else step
+                    lines.append(f"{i}. {text}")
+                lines.append("")
+        else:
+            for i, step in enumerate(instructions, 1):
+                text = step.get("text", "") if isinstance(step, dict) else step
+                lines.append(f"{i}. {text}")
+            lines.append("")
+
+    return "\n".join(lines).strip()
