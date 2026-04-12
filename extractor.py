@@ -124,12 +124,15 @@ def _find_recipe_in_ldjson(data) -> dict | None:
             if found:
                 return found
     elif isinstance(data, dict):
-        if data.get("@type") == "Recipe":
+        _type = data.get("@type", "")
+        if _type == "Recipe" or (isinstance(_type, list) and "Recipe" in _type):
             return data
         if "@graph" in data:
             for item in data["@graph"]:
-                if isinstance(item, dict) and item.get("@type") == "Recipe":
-                    return item
+                if isinstance(item, dict):
+                    _type = item.get("@type", "")
+                    if _type == "Recipe" or (isinstance(_type, list) and "Recipe" in _type):
+                        return item
     return None
 
 

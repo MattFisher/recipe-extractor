@@ -230,3 +230,10 @@ def test_heuristic_generic_headings():
     assert result["name"] == "Simple Pasta"
     assert "200g pasta" in result["recipeIngredient"]
     assert result["recipeInstructions"][0]["text"] == "Boil pasta."
+
+
+def test_extract_schema_org_type_as_list():
+    soup = _soup('{"@type": ["Recipe", "Thing"], "name": "Stew"}')
+    result = extract_schema_org(soup)
+    assert result is not None
+    assert result["name"] == "Stew"
