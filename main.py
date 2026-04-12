@@ -20,7 +20,7 @@ def extract(req: ExtractRequest):
         result: RecipeResult = extract_recipe(req.url)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
-    except requests.HTTPError as e:
+    except (requests.HTTPError, requests.ConnectionError) as e:
         raise HTTPException(status_code=502, detail=f"Failed to fetch URL: {e}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
