@@ -133,3 +133,15 @@ def test_markdown_howto_sections():
     assert "2. Add wet ingredients" in md
     assert "### Baking" in md
     assert "1. Bake at 350F" in md
+
+
+def test_normalize_recipe_yield_list():
+    raw = {"name": "Cake", "recipeYield": ["8", "8 servings"]}
+    result = normalize_recipe(raw)
+    assert result["recipeYield"] == "8"
+
+
+def test_normalize_author_missing_name():
+    raw = {"name": "Cake", "author": {"@type": "Person"}}
+    result = normalize_recipe(raw)
+    assert "author" not in result

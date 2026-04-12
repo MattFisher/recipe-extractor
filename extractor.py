@@ -54,6 +54,16 @@ def normalize_recipe(raw: dict) -> dict:
         elif isinstance(author, dict):
             out["author"] = author.get("name", "")
 
+    # Bug fix 1: Handle recipeYield as a list (Schema.org allows this)
+    if "recipeYield" in out and isinstance(out["recipeYield"], list):
+        out["recipeYield"] = out["recipeYield"][0] if out["recipeYield"] else ""
+        if out["recipeYield"] == "":
+            del out["recipeYield"]
+
+    # Bug fix 2: Remove empty author string that leaked through
+    if out.get("author") in ("", []):
+        del out["author"]
+
     return out
 
 
