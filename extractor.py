@@ -144,3 +144,63 @@ def extract_schema_org(soup: BeautifulSoup) -> dict | None:
         except (json.JSONDecodeError, AttributeError):
             continue
     return None
+
+
+def extract_heuristic(soup: BeautifulSoup) -> dict:
+    """Strategy 2: class-name pattern matching + heading traversal."""
+    recipe: dict = {}
+
+    # Known plugin prefixes
+    for prefix in ("wprm-recipe", "tasty-recipes", "mv-recipe"):
+        container = soup.find(class_=re.compile(rf"^{re.escape(prefix)}(?:-container)?$"))
+        if not container:
+            continue
+
+        name_el = container.find(class_=re.compile(rf"{re.escape(prefix)}-name$"))
+        if name_el:
+            recipe["name"] = name_el.get_text(strip=True)
+
+        ings = container.find_all(class_=re.compile(rf"{re.escape(prefix)}-ingredient$"))
+        if ings:
+            recipe["recipeIngredient"] = [el.get_text(strip=True) for el in ings]
+
+        steps = container.find_all(class_=re.compile(rf"{re.escape(prefix)}-instruction$"))
+        if steps:
+            recipe["recipeInstructions"] = [
+                {"@type": "HowToStep", "text": el.get_text(strip=True)} for el in steps
+            ]
+
+        if recipe:
+            break
+
+    # Generic fallback: h1/h2 title
+    if not recipe.get("name"):
+        heading = soup.find(["h1", "h2"])
+        if heading:
+            recipe["name"] = heading.get_text(strip=True)
+
+    # Generic fallback: ingredient list near "ingredients" heading
+    if not recipe.get("recipeIngredient"):
+        for h in soup.find_all(["h2", "h3", "h4"]):
+            if "ingredient" in h.get_text(strip=True).lower():
+                ul = h.find_next_sibling("ul")
+                if ul:
+                    recipe["recipeIngredient"] = [
+                        li.get_text(strip=True) for li in ul.find_all("li")
+                    ]
+                    break
+
+    # Generic fallback: instruction list near directions/instructions/method heading
+    if not recipe.get("recipeInstructions"):
+        for h in soup.find_all(["h2", "h3", "h4"]):
+            label = h.get_text(strip=True).lower()
+            if any(w in label for w in ("instruction", "direction", "method", "step")):
+                ol = h.find_next_sibling("ol")
+                if ol:
+                    recipe["recipeInstructions"] = [
+                        {"@type": "HowToStep", "text": li.get_text(strip=True)}
+                        for li in ol.find_all("li")
+                    ]
+                    break
+
+    return recipe

@@ -190,3 +190,43 @@ def test_extract_schema_org_invalid_json():
     )
     result = extract_schema_org(soup)
     assert result is None
+
+
+from extractor import extract_heuristic
+
+
+def test_heuristic_wprm_plugin():
+    html = """
+    <div class="wprm-recipe-container">
+      <span class="wprm-recipe-name">Pancakes</span>
+      <li class="wprm-recipe-ingredient">1 cup flour</li>
+      <li class="wprm-recipe-ingredient">1 egg</li>
+      <div class="wprm-recipe-instruction">Mix and cook.</div>
+    </div>
+    """
+    soup = BeautifulSoup(html, "lxml")
+    result = extract_heuristic(soup)
+    assert result["name"] == "Pancakes"
+    assert "1 cup flour" in result["recipeIngredient"]
+    assert result["recipeInstructions"][0]["text"] == "Mix and cook."
+
+
+def test_heuristic_generic_headings():
+    html = """
+    <h1>Simple Pasta</h1>
+    <h2>Ingredients</h2>
+    <ul>
+      <li>200g pasta</li>
+      <li>2 cloves garlic</li>
+    </ul>
+    <h2>Instructions</h2>
+    <ol>
+      <li>Boil pasta.</li>
+      <li>Fry garlic.</li>
+    </ol>
+    """
+    soup = BeautifulSoup(html, "lxml")
+    result = extract_heuristic(soup)
+    assert result["name"] == "Simple Pasta"
+    assert "200g pasta" in result["recipeIngredient"]
+    assert result["recipeInstructions"][0]["text"] == "Boil pasta."
