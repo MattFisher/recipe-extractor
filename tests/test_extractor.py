@@ -279,6 +279,8 @@ def test_extract_recipe_schema_org():
     assert result.strategy == "schema_org"
     assert "# Mock Cake" in result.markdown
     assert isinstance(result.schema, dict)
+    assert result.url == "http://example.com/recipe"
+    assert "http://example.com/recipe" in result.markdown
 
 
 def test_extract_recipe_heuristic_fallback():

@@ -32,7 +32,7 @@ def main():
     if (args.out and args.out.endswith(".json")) or args.json:
         content = json.dumps(
             {"schema": result.schema, "markdown": result.markdown,
-             "strategy": result.strategy, "title": result.title},
+             "strategy": result.strategy, "title": result.title, "url": result.url},
             indent=2,
         )
     else:

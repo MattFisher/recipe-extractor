@@ -29,6 +29,7 @@ def extract(req: ExtractRequest):
         "markdown": result.markdown,
         "strategy": result.strategy,
         "title": result.title,
+        "url": result.url,
     }
 
 

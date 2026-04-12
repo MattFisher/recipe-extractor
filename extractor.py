@@ -19,6 +19,7 @@ class RecipeResult:
     markdown: str
     strategy: Literal["schema_org", "heuristic"]
     title: str
+    url: str
 
 
 def parse_duration(iso: str) -> str:
@@ -75,7 +76,7 @@ def normalize_recipe(raw: dict) -> dict:
     return out
 
 
-def recipe_to_markdown(recipe: dict) -> str:
+def recipe_to_markdown(recipe: dict, source_url: str = "") -> str:
     """Render a normalised recipe dict to Markdown."""
     lines = [f"# {recipe.get('name', 'Recipe')}", ""]
 
@@ -120,6 +121,9 @@ def recipe_to_markdown(recipe: dict) -> str:
                 text = step.get("text", "") if isinstance(step, dict) else step
                 lines.append(f"{i}. {text}")
             lines.append("")
+
+    if source_url:
+        lines += ["", f"*Source: {source_url}*"]
 
     return "\n".join(lines).strip()
 
@@ -240,10 +244,11 @@ def extract_recipe(url: str) -> RecipeResult:
         raise ValueError(f"Could not extract recipe from {url}")
 
     normalized = normalize_recipe(raw)
-    md = recipe_to_markdown(normalized)
+    md = recipe_to_markdown(normalized, source_url=url)
     return RecipeResult(
         schema=normalized,
         markdown=md,
         strategy=strategy,
         title=normalized.get("name", ""),
+        url=url,
     )
