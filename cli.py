@@ -9,15 +9,10 @@ Usage:
 """
 import argparse
 import json
-import re
 import sys
 import requests
 
 from extractor import extract_recipe
-
-
-def slugify(text: str) -> str:
-    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
 
 
 def main():
@@ -29,7 +24,7 @@ def main():
 
     try:
         result = extract_recipe(args.url)
-    except (ValueError, requests.HTTPError) as e:
+    except (ValueError, requests.HTTPError, requests.ConnectionError) as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
