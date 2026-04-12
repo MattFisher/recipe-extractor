@@ -145,3 +145,48 @@ def test_normalize_author_missing_name():
     raw = {"name": "Cake", "author": {"@type": "Person"}}
     result = normalize_recipe(raw)
     assert "author" not in result
+
+
+from bs4 import BeautifulSoup
+from extractor import extract_schema_org
+
+
+def _soup(ldjson: str) -> BeautifulSoup:
+    return BeautifulSoup(
+        f'<html><head><script type="application/ld+json">{ldjson}</script></head></html>',
+        "lxml",
+    )
+
+
+def test_extract_schema_org_direct():
+    soup = _soup('{"@type": "Recipe", "name": "Cake"}')
+    result = extract_schema_org(soup)
+    assert result is not None
+    assert result["name"] == "Cake"
+
+
+def test_extract_schema_org_graph_wrapper():
+    soup = _soup('{"@graph": [{"@type": "WebPage"}, {"@type": "Recipe", "name": "Pie"}]}')
+    result = extract_schema_org(soup)
+    assert result["name"] == "Pie"
+
+
+def test_extract_schema_org_list_root():
+    soup = _soup('[{"@type": "WebPage"}, {"@type": "Recipe", "name": "Soup"}]')
+    result = extract_schema_org(soup)
+    assert result["name"] == "Soup"
+
+
+def test_extract_schema_org_not_found():
+    soup = _soup('{"@type": "WebPage", "name": "Some Page"}')
+    result = extract_schema_org(soup)
+    assert result is None
+
+
+def test_extract_schema_org_invalid_json():
+    soup = BeautifulSoup(
+        '<html><head><script type="application/ld+json">{bad json}</script></head></html>',
+        "lxml",
+    )
+    result = extract_schema_org(soup)
+    assert result is None

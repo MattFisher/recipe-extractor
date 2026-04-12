@@ -114,3 +114,33 @@ def recipe_to_markdown(recipe: dict) -> str:
             lines.append("")
 
     return "\n".join(lines).strip()
+
+
+def _find_recipe_in_ldjson(data) -> dict | None:
+    """Recursively search parsed ld+json for a Recipe node."""
+    if isinstance(data, list):
+        for item in data:
+            found = _find_recipe_in_ldjson(item)
+            if found:
+                return found
+    elif isinstance(data, dict):
+        if data.get("@type") == "Recipe":
+            return data
+        if "@graph" in data:
+            for item in data["@graph"]:
+                if isinstance(item, dict) and item.get("@type") == "Recipe":
+                    return item
+    return None
+
+
+def extract_schema_org(soup: BeautifulSoup) -> dict | None:
+    """Strategy 1: find Recipe in any ld+json script tag."""
+    for tag in soup.find_all("script", type="application/ld+json"):
+        try:
+            data = json.loads(tag.string or "")
+            recipe = _find_recipe_in_ldjson(data)
+            if recipe:
+                return recipe
+        except (json.JSONDecodeError, AttributeError):
+            continue
+    return None
