@@ -1,4 +1,5 @@
 import pytest
+import requests
 from extractor import parse_duration
 
 
@@ -237,3 +238,59 @@ def test_extract_schema_org_type_as_list():
     result = extract_schema_org(soup)
     assert result is not None
     assert result["name"] == "Stew"
+
+
+from unittest.mock import patch, MagicMock
+from extractor import extract_recipe, RecipeResult
+
+_LDJSON_HTML = """
+<html>
+<head>
+  <script type="application/ld+json">
+    {"@type": "Recipe", "name": "Mock Cake", "recipeIngredient": ["2 eggs"],
+     "recipeInstructions": [{"@type": "HowToStep", "text": "Mix and bake."}]}
+  </script>
+</head>
+<body></body>
+</html>
+"""
+
+_HEURISTIC_HTML = """
+<html><body>
+  <h1>Mock Soup</h1>
+  <h2>Ingredients</h2><ul><li>Water</li></ul>
+  <h2>Instructions</h2><ol><li>Boil water.</li></ol>
+</body></html>
+"""
+
+
+def _mock_response(html: str) -> MagicMock:
+    resp = MagicMock()
+    resp.text = html
+    resp.raise_for_status = MagicMock()
+    return resp
+
+
+def test_extract_recipe_schema_org():
+    with patch("extractor.requests.get", return_value=_mock_response(_LDJSON_HTML)):
+        result = extract_recipe("http://example.com/recipe")
+    assert isinstance(result, RecipeResult)
+    assert result.title == "Mock Cake"
+    assert result.strategy == "schema_org"
+    assert "# Mock Cake" in result.markdown
+    assert isinstance(result.schema, dict)
+
+
+def test_extract_recipe_heuristic_fallback():
+    with patch("extractor.requests.get", return_value=_mock_response(_HEURISTIC_HTML)):
+        result = extract_recipe("http://example.com/recipe")
+    assert result.title == "Mock Soup"
+    assert result.strategy == "heuristic"
+
+
+def test_extract_recipe_http_error():
+    resp = MagicMock()
+    resp.raise_for_status.side_effect = requests.HTTPError("404")
+    with patch("extractor.requests.get", return_value=resp):
+        with pytest.raises(requests.HTTPError):
+            extract_recipe("http://example.com/404")

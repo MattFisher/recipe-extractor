@@ -13,6 +13,14 @@ BROWSER_UA = (
 )
 
 
+@dataclass
+class RecipeResult:
+    schema: dict
+    markdown: str
+    strategy: Literal["schema_org", "heuristic"]
+    title: str
+
+
 def parse_duration(iso: str) -> str:
     """Convert ISO 8601 duration to human-readable string.
     PT1H30M -> '1 hr 30 min', PT45M -> '45 min'
@@ -207,3 +215,35 @@ def extract_heuristic(soup: BeautifulSoup) -> dict:
                     break
 
     return recipe
+
+
+def fetch_html(url: str) -> str:
+    """Fetch URL with a browser User-Agent. Raises on non-2xx."""
+    resp = requests.get(url, headers={"User-Agent": BROWSER_UA}, timeout=15)
+    resp.raise_for_status()
+    return resp.text
+
+
+def extract_recipe(url: str) -> RecipeResult:
+    """Main entry point: fetch URL, extract, normalise, render."""
+    html = fetch_html(url)
+    soup = BeautifulSoup(html, "lxml")
+
+    raw = extract_schema_org(soup)
+    if raw:
+        strategy: Literal["schema_org", "heuristic"] = "schema_org"
+    else:
+        raw = extract_heuristic(soup)
+        strategy = "heuristic"
+
+    if not raw or not raw.get("name"):
+        raise ValueError(f"Could not extract recipe from {url}")
+
+    normalized = normalize_recipe(raw)
+    md = recipe_to_markdown(normalized)
+    return RecipeResult(
+        schema=normalized,
+        markdown=md,
+        strategy=strategy,
+        title=normalized.get("name", ""),
+    )
