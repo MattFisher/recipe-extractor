@@ -99,6 +99,13 @@
 
     .recipe-header { margin-bottom: 1rem; }
 
+    .recipe-description {
+      color: #374151;
+      font-size: 0.95rem;
+      margin-bottom: 0.75rem;
+      line-height: 1.5;
+    }
+
     .source-url {
       font-size: 0.8rem;
       color: var(--grey);
@@ -271,7 +278,23 @@
     if (s.prepTime)   chips.push('Prep: ' + parseDuration(s.prepTime));
     if (s.cookTime)   chips.push('Cook: ' + parseDuration(s.cookTime));
     if (s.totalTime)  chips.push('Total: ' + parseDuration(s.totalTime));
+    // Category and cuisine
+    const cats = [].concat(s.recipeCategory || [], s.recipeCuisine || []);
+    cats.forEach(c => chips.push(c));
     return chips.map(c => `<span class="chip">${esc(c)}</span>`).join('');
+  }
+
+  function renderNutrition(n) {
+    if (!n || typeof n !== 'object') return '';
+    const fields = [
+      ['calories','Calories'], ['carbohydrateContent','Carbs'],
+      ['proteinContent','Protein'], ['fatContent','Fat'],
+      ['fiberContent','Fiber'], ['sugarContent','Sugar'],
+    ];
+    const parts = fields.filter(([k]) => n[k]).map(([k, label]) =>
+      `<span class="chip">${esc(label + ': ' + n[k])}</span>`
+    ).join('');
+    return parts ? `<div class="section-title">Nutrition</div><div class="meta-chips">${parts}</div>` : '';
   }
 
   function renderInstructions(instructions) {
@@ -314,8 +337,10 @@
         <button class="action-btn" id="copyBtn">Copy for Notes</button>
         <button class="action-btn" id="downloadBtn">Download JSON</button>
       </div>
+      ${s.description ? `<p class="recipe-description">${esc(s.description)}</p>` : ''}
       ${ings ? `<div class="section-title">Ingredients</div><ul class="ingredient-list">${ings}</ul>` : ''}
       ${s.recipeInstructions ? `<div class="section-title">Instructions</div>${renderInstructions(s.recipeInstructions)}` : ''}
+      ${renderNutrition(s.nutrition)}
     `;
 
     recipeCard.style.display = 'block';

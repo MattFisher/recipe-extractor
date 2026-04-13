@@ -46,6 +46,7 @@ _RECIPE_FIELDS = {
     "recipeYield", "prepTime", "cookTime", "totalTime",
     "recipeIngredient", "recipeInstructions",
     "recipeCategory", "recipeCuisine", "keywords",
+    "nutrition",
 }
 
 
@@ -76,11 +77,34 @@ def normalize_recipe(raw: dict) -> dict:
     return out
 
 
+def _format_nutrition(nutrition: dict) -> str:
+    """Render a NutritionInformation dict as a compact string."""
+    mapping = [
+        ("calories", "Calories"),
+        ("carbohydrateContent", "Carbs"),
+        ("proteinContent", "Protein"),
+        ("fatContent", "Fat"),
+        ("saturatedFatContent", "Sat. fat"),
+        ("fiberContent", "Fiber"),
+        ("sugarContent", "Sugar"),
+        ("sodiumContent", "Sodium"),
+    ]
+    parts = []
+    for key, label in mapping:
+        if nutrition.get(key):
+            parts.append(f"{label}: {nutrition[key]}")
+    return " · ".join(parts)
+
+
 def recipe_to_markdown(recipe: dict, source_url: str = "") -> str:
     """Render a normalised recipe dict to Markdown."""
     lines = [f"# {recipe.get('name', 'Recipe')}", ""]
 
-    # Meta line
+    # Description
+    if recipe.get("description"):
+        lines += [recipe["description"], ""]
+
+    # Meta line: author, yield, times
     meta = []
     author = recipe.get("author")
     if author:
@@ -95,6 +119,22 @@ def recipe_to_markdown(recipe: dict, source_url: str = "") -> str:
             meta.append(f"{label}: {parse_duration(recipe[key])}")
     if meta:
         lines.append(" · ".join(meta))
+        lines.append("")
+
+    # Category / cuisine / keywords
+    tags = []
+    for key in ("recipeCategory", "recipeCuisine"):
+        val = recipe.get(key)
+        if val:
+            if isinstance(val, list):
+                tags.extend(val)
+            else:
+                tags.append(val)
+    if recipe.get("keywords"):
+        kw = recipe["keywords"]
+        tags.extend(k.strip() for k in kw.split(",") if k.strip())
+    if tags:
+        lines.append("Tags: " + ", ".join(tags))
         lines.append("")
 
     # Ingredients
@@ -121,6 +161,13 @@ def recipe_to_markdown(recipe: dict, source_url: str = "") -> str:
                 text = step.get("text", "") if isinstance(step, dict) else step
                 lines.append(f"{i}. {text}")
             lines.append("")
+
+    # Nutrition
+    nutrition = recipe.get("nutrition")
+    if isinstance(nutrition, dict):
+        nut_str = _format_nutrition(nutrition)
+        if nut_str:
+            lines += ["## Nutrition", "", nut_str, ""]
 
     if source_url:
         lines += ["", f"*Source: {source_url}*"]
