@@ -99,6 +99,19 @@
 
     .recipe-header { margin-bottom: 1rem; }
 
+    #fixtureBar {
+      margin-bottom: 1rem;
+      font-size: 0.82rem;
+      color: var(--grey);
+    }
+    #fixtureBar a {
+      color: var(--orange);
+      cursor: pointer;
+      text-decoration: none;
+      margin-right: 0.6rem;
+    }
+    #fixtureBar a:hover { text-decoration: underline; }
+
     .recipe-description {
       color: #374151;
       font-size: 0.95rem;
@@ -214,6 +227,7 @@
     <input type="url" id="urlInput" placeholder="Paste a recipe URL…" autocomplete="off">
     <button id="extractBtn">Get Recipe</button>
   </div>
+  <div id="fixtureBar"></div>
 
   <div class="spinner" id="spinner"></div>
   <div class="error-box" id="errorBox"></div>
@@ -393,6 +407,44 @@
 
   extractBtn.addEventListener('click', doExtract);
   urlInput.addEventListener('keydown', e => { if (e.key === 'Enter') doExtract(); });
+
+  // --- Fixture loader (dev) ---
+  async function loadFixture(name) {
+    extractBtn.disabled = true;
+    spinner.style.display = 'block';
+    errorBox.style.display = 'none';
+    recipeCard.style.display = 'none';
+    try {
+      const resp = await fetch(`/fixture/${encodeURIComponent(name)}`);
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.detail || `Error ${resp.status}`);
+      spinner.style.display = 'none';
+      renderRecipe(data);
+    } catch (err) {
+      showError(err.message);
+    } finally {
+      extractBtn.disabled = false;
+    }
+  }
+
+  // Probe /fixture/ for available fixtures; render links if any found
+  (async () => {
+    try {
+      // hit a known-missing name to get the "available" list from the 404 detail
+      const resp = await fetch('/fixture/__probe__');
+      if (resp.status === 404) {
+        const data = await resp.json();
+        const available = data.detail?.match(/\[(.*?)\]/)?.[1]
+          ?.split(',').map(s => s.trim().replace(/'/g, '').trim()).filter(Boolean) || [];
+        if (available.length) {
+          const bar = document.getElementById('fixtureBar');
+          bar.innerHTML = 'Test fixtures: ' + available.map(n =>
+            `<a onclick="loadFixture('${n}')">${n}</a>`
+          ).join('');
+        }
+      }
+    } catch (_) { /* no fixtures dir or server not running */ }
+  })();
 </script>
 </body>
 </html>

@@ -275,9 +275,8 @@ def fetch_html(url: str) -> str:
     return resp.text
 
 
-def extract_recipe(url: str) -> RecipeResult:
-    """Main entry point: fetch URL, extract, normalise, render."""
-    html = fetch_html(url)
+def extract_recipe_from_html(html: str, url: str) -> RecipeResult:
+    """Extract a recipe from already-fetched HTML. url is used for provenance only."""
     soup = BeautifulSoup(html, "lxml")
 
     raw = extract_schema_org(soup)
@@ -299,3 +298,8 @@ def extract_recipe(url: str) -> RecipeResult:
         title=normalized.get("name", ""),
         url=url,
     )
+
+
+def extract_recipe(url: str) -> RecipeResult:
+    """Fetch url and extract recipe. Delegates to extract_recipe_from_html."""
+    return extract_recipe_from_html(fetch_html(url), url)
