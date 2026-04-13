@@ -132,7 +132,10 @@ def recipe_to_markdown(recipe: dict, source_url: str = "") -> str:
                 tags.append(val)
     if recipe.get("keywords"):
         kw = recipe["keywords"]
-        tags.extend(k.strip() for k in kw.split(",") if k.strip())
+        if isinstance(kw, list):
+            tags.extend(k.strip() for k in kw if k.strip())
+        else:
+            tags.extend(k.strip() for k in kw.split(",") if k.strip())
     if tags:
         lines.append("Tags: " + ", ".join(tags))
         lines.append("")
