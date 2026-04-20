@@ -241,21 +241,120 @@
   const errorBox = document.getElementById('errorBox');
   const recipeCard = document.getElementById('recipeCard');
 
-  function copyToClipboard(text) {
+  // Copy plain text to clipboard (for raw markdown)
+  function copyText(text) {
     if (navigator.clipboard && navigator.clipboard.writeText) {
       return navigator.clipboard.writeText(text);
     }
-    // execCommand fallback for older Safari
     const ta = document.createElement('textarea');
     ta.value = text;
-    ta.style.position = 'fixed';
-    ta.style.opacity = '0';
+    ta.style.cssText = 'position:fixed;opacity:0';
     document.body.appendChild(ta);
-    ta.focus();
-    ta.select();
+    ta.focus(); ta.select();
     document.execCommand('copy');
     document.body.removeChild(ta);
     return Promise.resolve();
+  }
+
+  // Copy rich text / HTML to clipboard — pastes formatted into Apple Notes, Mail, etc.
+  // Falls back to contenteditable + execCommand for older Safari (which supports
+  // copying rich text via selection but not ClipboardItem).
+  function copyRichText(html) {
+    // Modern API: explicit HTML MIME type
+    if (window.ClipboardItem && navigator.clipboard && navigator.clipboard.write) {
+      const blob = new Blob([html], { type: 'text/html' });
+      return navigator.clipboard.write([new ClipboardItem({ 'text/html': blob })]);
+    }
+    // execCommand fallback: render into a hidden contenteditable, select, copy
+    const div = document.createElement('div');
+    div.contentEditable = 'true';
+    div.style.cssText = 'position:fixed;opacity:0;top:0;left:0;pointer-events:none';
+    div.innerHTML = html;
+    document.body.appendChild(div);
+    const sel = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(div);
+    sel.removeAllRanges();
+    sel.addRange(range);
+    document.execCommand('copy');
+    sel.removeAllRanges();
+    document.body.removeChild(div);
+    return Promise.resolve();
+  }
+
+  // Build a clean HTML representation of the recipe for rich-text paste
+  function recipeToHtml(data) {
+    const s = data.schema;
+    const lines = [];
+
+    lines.push(`<h1>${esc(data.title)}</h1>`);
+
+    // Meta
+    const meta = [];
+    if (s.author) meta.push('By ' + esc(Array.isArray(s.author) ? s.author.join(', ') : s.author));
+    if (s.recipeYield) meta.push('Yield: ' + esc(s.recipeYield));
+    if (s.prepTime)  meta.push('Prep: '  + parseDuration(s.prepTime));
+    if (s.cookTime)  meta.push('Cook: '  + parseDuration(s.cookTime));
+    if (s.totalTime) meta.push('Total: ' + parseDuration(s.totalTime));
+    if (meta.length) lines.push(`<p>${meta.join(' · ')}</p>`);
+
+    if (s.description) lines.push(`<p><em>${esc(s.description)}</em></p>`);
+
+    // Category / cuisine / keywords
+    const tags = [].concat(s.recipeCategory||[], s.recipeCuisine||[]);
+    if (s.keywords) {
+      const kw = s.keywords;
+      if (Array.isArray(kw)) tags.push(...kw);
+      else tags.push(...kw.split(',').map(k=>k.trim()).filter(Boolean));
+    }
+    if (tags.length) lines.push(`<p><strong>Tags:</strong> ${esc(tags.join(', '))}</p>`);
+
+    // Ingredients
+    if (s.recipeIngredient && s.recipeIngredient.length) {
+      lines.push('<h2>Ingredients</h2>');
+      lines.push('<ul>' + s.recipeIngredient.map(i => `<li>${esc(i)}</li>`).join('') + '</ul>');
+    }
+
+    // Instructions
+    const instructions = s.recipeInstructions || [];
+    if (instructions.length) {
+      lines.push('<h2>Instructions</h2>');
+      const first = instructions[0];
+      if (first && first['@type'] === 'HowToSection') {
+        instructions.forEach(sec => {
+          lines.push(`<h3>${esc(sec.name || 'Section')}</h3>`);
+          const steps = (sec.itemListElement || []).map(step => {
+            const t = typeof step === 'object' ? step.text : step;
+            return `<li>${esc(t)}</li>`;
+          });
+          lines.push('<ol>' + steps.join('') + '</ol>');
+        });
+      } else {
+        const steps = instructions.map(step => {
+          const t = typeof step === 'object' ? (step.text||'') : step;
+          return `<li>${esc(t)}</li>`;
+        });
+        lines.push('<ol>' + steps.join('') + '</ol>');
+      }
+    }
+
+    // Nutrition
+    const n = s.nutrition;
+    if (n && typeof n === 'object') {
+      const fields = [
+        ['calories','Calories'],['carbohydrateContent','Carbs'],
+        ['proteinContent','Protein'],['fatContent','Fat'],
+        ['fiberContent','Fiber'],['sugarContent','Sugar'],
+      ];
+      const parts = fields.filter(([k])=>n[k]).map(([k,l])=>`${l}: ${esc(n[k])}`);
+      if (parts.length) lines.push(`<p><strong>Nutrition:</strong> ${parts.join(' · ')}</p>`);
+    }
+
+    if (data.url && !data.url.startsWith('fixture://')) {
+      lines.push(`<p><em>Source: <a href="${esc(data.url)}">${esc(data.url)}</a></em></p>`);
+    }
+
+    return lines.join('\n');
   }
 
   function showError(msg) {
@@ -348,7 +447,8 @@
         </div>
       </div>
       <div class="action-row">
-        <button class="action-btn" id="copyBtn">Copy for Notes</button>
+        <button class="action-btn" id="copyNotesBtn">Copy for Notes</button>
+        <button class="action-btn" id="copyMdBtn">Copy Markdown</button>
         <button class="action-btn" id="downloadBtn">Download JSON</button>
       </div>
       ${s.description ? `<p class="recipe-description">${esc(s.description)}</p>` : ''}
@@ -359,11 +459,25 @@
 
     recipeCard.style.display = 'block';
 
-    document.getElementById('copyBtn').addEventListener('click', () => {
-      copyToClipboard(data.markdown).then(() => {
-        const btn = document.getElementById('copyBtn');
+    document.getElementById('copyNotesBtn').addEventListener('click', () => {
+      const btn = document.getElementById('copyNotesBtn');
+      copyRichText(recipeToHtml(data)).then(() => {
         btn.textContent = 'Copied!';
         setTimeout(() => { btn.textContent = 'Copy for Notes'; }, 2000);
+      }).catch(() => {
+        // Last-resort: fall back to plain markdown if rich text API unavailable
+        copyText(data.markdown).then(() => {
+          btn.textContent = 'Copied (markdown)';
+          setTimeout(() => { btn.textContent = 'Copy for Notes'; }, 2500);
+        });
+      });
+    });
+
+    document.getElementById('copyMdBtn').addEventListener('click', () => {
+      const btn = document.getElementById('copyMdBtn');
+      copyText(data.markdown).then(() => {
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = 'Copy Markdown'; }, 2000);
       });
     });
 
