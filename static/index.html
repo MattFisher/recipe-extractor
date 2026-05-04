@@ -353,6 +353,9 @@
     if (data.url && !data.url.startsWith('fixture://')) {
       lines.push(`<p><em>Source: <a href="${esc(data.url)}">${esc(data.url)}</a></em></p>`);
     }
+    if (data.permalink) {
+      lines.push(`<p><em>Permalink: <a href="${esc(data.permalink)}">${esc(data.permalink)}</a></em></p>`);
+    }
 
     return lines.join('\n');
   }
@@ -475,7 +478,10 @@
 
     document.getElementById('copyMdBtn').addEventListener('click', () => {
       const btn = document.getElementById('copyMdBtn');
-      copyText(data.markdown).then(() => {
+      const md = data.permalink
+        ? data.markdown + '\n\n*Permalink: ' + data.permalink + '*'
+        : data.markdown;
+      copyText(md).then(() => {
         btn.textContent = 'Copied!';
         setTimeout(() => { btn.textContent = 'Copy Markdown'; }, 2000);
       });
@@ -504,6 +510,9 @@
       if (!resp.ok) throw new Error(data.detail || `Server error ${resp.status}`);
       spinner.style.display = 'none';
       document.title = data.title + ' — Recipe Extractor';
+      if (data.url && !data.url.startsWith('fixture://')) {
+        data.permalink = window.location.origin + '/?url=' + encodeURIComponent(data.url);
+      }
       renderRecipe(data);
     } catch (err) {
       showError(err.message || 'Extraction failed. Check the URL and try again.');
