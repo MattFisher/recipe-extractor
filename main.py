@@ -2,7 +2,6 @@ import os
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, Response
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
 import requests
 
 from extractor import extract_recipe, extract_recipe_from_html, RecipeResult
@@ -10,10 +9,6 @@ from extractor import extract_recipe, extract_recipe_from_html, RecipeResult
 FIXTURES_DIR = Path(__file__).parent / "tests" / "fixtures"
 
 app = FastAPI(title="Recipe Extractor")
-
-
-class ExtractRequest(BaseModel):
-    url: str
 
 
 @app.get("/extract")
@@ -29,26 +24,6 @@ def extract_get(url: str, response: Response):
         raise HTTPException(status_code=500, detail=str(e))
 
     response.headers["Cache-Control"] = "public, max-age=3600"
-    return {
-        "schema": result.schema,
-        "markdown": result.markdown,
-        "strategy": result.strategy,
-        "title": result.title,
-        "url": result.url,
-    }
-
-
-@app.post("/extract")
-def extract(req: ExtractRequest):
-    try:
-        result: RecipeResult = extract_recipe(req.url)
-    except ValueError as e:
-        raise HTTPException(status_code=422, detail=str(e))
-    except (requests.HTTPError, requests.ConnectionError) as e:
-        raise HTTPException(status_code=502, detail=f"Failed to fetch URL: {e}")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
     return {
         "schema": result.schema,
         "markdown": result.markdown,
