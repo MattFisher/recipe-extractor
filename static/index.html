@@ -491,26 +491,19 @@
     });
   }
 
-  async function doExtract() {
-    const url = urlInput.value.trim();
-    if (!url) { urlInput.focus(); return; }
-
+  // Fetch and render a recipe URL. Does NOT touch history — callers handle that.
+  async function runExtract(url) {
     extractBtn.disabled = true;
     spinner.style.display = 'block';
     errorBox.style.display = 'none';
     recipeCard.style.display = 'none';
 
     try {
-      const resp = await fetch('/extract', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({url}),
-      });
+      const resp = await fetch('/extract?' + new URLSearchParams({url}));
       const data = await resp.json();
-      if (!resp.ok) {
-        throw new Error(data.detail || `Server error ${resp.status}`);
-      }
+      if (!resp.ok) throw new Error(data.detail || `Server error ${resp.status}`);
       spinner.style.display = 'none';
+      document.title = data.title + ' — Recipe Extractor';
       renderRecipe(data);
     } catch (err) {
       showError(err.message || 'Extraction failed. Check the URL and try again.');
@@ -519,8 +512,39 @@
     }
   }
 
-  extractBtn.addEventListener('click', doExtract);
-  urlInput.addEventListener('keydown', e => { if (e.key === 'Enter') doExtract(); });
+  // Called on explicit user submit: push permalink then extract.
+  function submitUrl(url) {
+    history.pushState({}, '', '?url=' + encodeURIComponent(url));
+    runExtract(url);
+  }
+
+  extractBtn.addEventListener('click', () => {
+    const url = urlInput.value.trim();
+    if (url) submitUrl(url); else urlInput.focus();
+  });
+  urlInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { const url = urlInput.value.trim(); if (url) submitUrl(url); }
+  });
+
+  // Back / forward navigation
+  window.addEventListener('popstate', () => {
+    const u = new URLSearchParams(location.search).get('url');
+    if (u) {
+      urlInput.value = u;
+      runExtract(u);
+    } else {
+      urlInput.value = '';
+      recipeCard.style.display = 'none';
+      errorBox.style.display = 'none';
+      document.title = 'Recipe Extractor';
+    }
+  });
+
+  // Auto-load when arriving via a permalink (?url=…)
+  (() => {
+    const u = new URLSearchParams(location.search).get('url');
+    if (u) { urlInput.value = u; runExtract(u); }
+  })();
 
   // --- Fixture loader (dev) ---
   async function loadFixture(name) {
