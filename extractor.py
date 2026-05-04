@@ -1,3 +1,4 @@
+import html as html_module
 import re
 import json
 import requests
@@ -50,6 +51,22 @@ _RECIPE_FIELDS = {
 }
 
 
+def _unescape(value):
+    """Recursively decode HTML entities in strings (e.g. &amp; → &).
+
+    Some sites embed HTML entities inside their JSON-LD text, which is
+    technically invalid but common. Without this, '&amp;' would be
+    double-encoded to '&amp;amp;' when we build HTML output.
+    """
+    if isinstance(value, str):
+        return html_module.unescape(value)
+    if isinstance(value, list):
+        return [_unescape(v) for v in value]
+    if isinstance(value, dict):
+        return {k: _unescape(v) for k, v in value.items()}
+    return value
+
+
 def normalize_recipe(raw: dict) -> dict:
     """Trim to clean Schema.org Recipe shape, resolve nested authors."""
     out = {k: v for k, v in raw.items() if k in _RECIPE_FIELDS and v not in (None, "", [], {})}
@@ -73,6 +90,9 @@ def normalize_recipe(raw: dict) -> dict:
     # Bug fix 2: Remove empty author string that leaked through
     if out.get("author") in ("", []):
         del out["author"]
+
+    # Decode any HTML entities embedded in JSON-LD string values
+    out = _unescape(out)
 
     return out
 
