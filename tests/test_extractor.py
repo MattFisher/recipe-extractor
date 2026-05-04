@@ -241,7 +241,7 @@ def test_extract_schema_org_type_as_list():
 
 
 from unittest.mock import patch, MagicMock
-from extractor import extract_recipe, RecipeResult
+from extractor import extract_recipe, validate_url, RecipeResult
 
 _LDJSON_HTML = """
 <html>
@@ -272,7 +272,8 @@ def _mock_response(html: str) -> MagicMock:
 
 
 def test_extract_recipe_schema_org():
-    with patch("extractor.requests.get", return_value=_mock_response(_LDJSON_HTML)):
+    with patch("extractor.validate_url"), \
+         patch("extractor.requests.get", return_value=_mock_response(_LDJSON_HTML)):
         result = extract_recipe("http://example.com/recipe")
     assert isinstance(result, RecipeResult)
     assert result.title == "Mock Cake"
@@ -284,7 +285,8 @@ def test_extract_recipe_schema_org():
 
 
 def test_extract_recipe_heuristic_fallback():
-    with patch("extractor.requests.get", return_value=_mock_response(_HEURISTIC_HTML)):
+    with patch("extractor.validate_url"), \
+         patch("extractor.requests.get", return_value=_mock_response(_HEURISTIC_HTML)):
         result = extract_recipe("http://example.com/recipe")
     assert result.title == "Mock Soup"
     assert result.strategy == "heuristic"
@@ -293,6 +295,54 @@ def test_extract_recipe_heuristic_fallback():
 def test_extract_recipe_http_error():
     resp = MagicMock()
     resp.raise_for_status.side_effect = requests.HTTPError("404")
-    with patch("extractor.requests.get", return_value=resp):
+    with patch("extractor.validate_url"), \
+         patch("extractor.requests.get", return_value=resp):
         with pytest.raises(requests.HTTPError):
             extract_recipe("http://example.com/404")
+
+
+# --- validate_url (SSRF protection) ---
+
+def test_validate_url_accepts_public_https():
+    # 93.184.216.34 is example.com — IP literal resolves without DNS
+    validate_url("https://93.184.216.34/recipe")
+
+
+def test_validate_url_accepts_public_http():
+    validate_url("http://93.184.216.34/recipe")
+
+
+def test_validate_url_rejects_ftp_scheme():
+    with pytest.raises(ValueError, match="http"):
+        validate_url("ftp://example.com/recipe")
+
+
+def test_validate_url_rejects_file_scheme():
+    with pytest.raises(ValueError, match="http"):
+        validate_url("file:///etc/passwd")
+
+
+def test_validate_url_rejects_loopback():
+    with pytest.raises(ValueError, match="private"):
+        validate_url("http://127.0.0.1/recipe")
+
+
+def test_validate_url_rejects_private_10():
+    with pytest.raises(ValueError, match="private"):
+        validate_url("http://10.0.0.1/recipe")
+
+
+def test_validate_url_rejects_private_192_168():
+    with pytest.raises(ValueError, match="private"):
+        validate_url("http://192.168.1.100/recipe")
+
+
+def test_validate_url_rejects_link_local():
+    # 169.254.169.254 is the AWS instance metadata endpoint
+    with pytest.raises(ValueError, match="private"):
+        validate_url("http://169.254.169.254/latest/meta-data/")
+
+
+def test_validate_url_rejects_localhost():
+    with pytest.raises(ValueError, match="private"):
+        validate_url("http://localhost/recipe")

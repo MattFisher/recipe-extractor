@@ -1,10 +1,13 @@
 import html as html_module
+import ipaddress
 import re
 import json
+import socket
 import requests
 from bs4 import BeautifulSoup
 from dataclasses import dataclass
 from typing import Literal
+from urllib.parse import urlparse
 
 
 BROWSER_UA = (
@@ -291,8 +294,46 @@ def extract_heuristic(soup: BeautifulSoup) -> dict:
     return recipe
 
 
+def validate_url(url: str) -> None:
+    """Raise ValueError if url is unsafe to fetch (SSRF protection).
+
+    Blocks non-http(s) schemes and any hostname that resolves to a
+    private, loopback, link-local, or otherwise non-public IP address.
+    """
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        raise ValueError("Invalid URL")
+
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError(
+            f"Only http and https URLs are supported (got {parsed.scheme!r})"
+        )
+
+    hostname = parsed.hostname
+    if not hostname:
+        raise ValueError("URL has no hostname")
+
+    try:
+        results = socket.getaddrinfo(hostname, None)
+    except socket.gaierror:
+        raise ValueError(f"Could not resolve hostname: {hostname!r}")
+
+    for _family, _type, _proto, _canon, sockaddr in results:
+        ip_str = sockaddr[0]
+        try:
+            ip = ipaddress.ip_address(ip_str)
+        except ValueError:
+            continue
+        if not ip.is_global:
+            raise ValueError(
+                "Requests to private or internal addresses are not allowed"
+            )
+
+
 def fetch_html(url: str) -> str:
     """Fetch URL with a browser User-Agent. Raises on non-2xx."""
+    validate_url(url)
     resp = requests.get(url, headers={"User-Agent": BROWSER_UA}, timeout=15)
     resp.raise_for_status()
     return resp.text
