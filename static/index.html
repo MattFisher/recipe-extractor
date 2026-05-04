@@ -479,7 +479,7 @@
     document.getElementById('copyMdBtn').addEventListener('click', () => {
       const btn = document.getElementById('copyMdBtn');
       const md = data.permalink
-        ? data.markdown + '\n\n*Permalink: ' + data.permalink + '*'
+        ? data.markdown + '\n*[Permalink](' + data.permalink + ')*'
         : data.markdown;
       copyText(md).then(() => {
         btn.textContent = 'Copied!';

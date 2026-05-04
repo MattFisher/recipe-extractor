@@ -196,7 +196,7 @@ def recipe_to_markdown(recipe: dict, source_url: str = "") -> str:
             lines += ["## Nutrition", "", nut_str, ""]
 
     if source_url:
-        lines += ["", f"*Source: {source_url}*"]
+        lines += ["", f"*[Source]({source_url})*"]
 
     return "\n".join(lines).strip()
 
